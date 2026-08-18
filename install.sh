@@ -436,6 +436,40 @@ EOF
             first_install=true
         fi
     else
+        # 夺舍/迁移场景：机器上已有旧版（原版）v2node 配置，默认原样继承。
+        # 若传入 --api-host/--node-id/--api-key 参数，则只覆盖对应字段（其余字段保留），
+        # 用于批量把旧节点的面板地址/节点参数切到新面板，无需逐台 SSH 手改。
+        if [[ -n "$API_HOST_ARG" || -n "$NODE_ID_ARG" || -n "$API_KEY_ARG" ]]; then
+            echo -e "${yellow}检测到已有 v2node 配置，按传入参数覆盖对应字段（未传字段保持不变）${plain}"
+            if command -v python3 >/dev/null 2>&1; then
+                python3 - "$API_HOST_ARG" "$NODE_ID_ARG" "$API_KEY_ARG" <<'PYEOF'
+import json, sys
+api_host, node_id, api_key = sys.argv[1], sys.argv[2], sys.argv[3]
+p = "/etc/v2node/config.json"
+try:
+    cfg = json.load(open(p))
+except Exception as e:
+    print("读取配置失败:", e)
+    sys.exit(1)
+nodes = cfg.get("Nodes") or []
+if not nodes:
+    nodes = [{}]
+    cfg["Nodes"] = nodes
+if api_host:
+    nodes[0]["ApiHost"] = api_host
+if node_id:
+    nodes[0]["NodeID"] = int(node_id)
+if api_key:
+    nodes[0]["ApiKey"] = api_key
+json.dump(cfg, open(p, "w"), indent=4)
+print("已覆盖配置:", json.dumps(nodes[0], ensure_ascii=False))
+PYEOF
+            else
+                echo -e "${red}未找到 python3，无法覆盖已有配置；将原样继承旧配置${plain}"
+            fi
+        else
+            echo -e "${green}检测到已有 v2node 配置，已原样继承（未传覆盖参数）${plain}"
+        fi
         if [[ x"${release}" == x"alpine" ]]; then
             service v2node start
         else
