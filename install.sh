@@ -46,6 +46,7 @@ VERSION_ARG=""
 API_HOST_ARG=""
 NODE_ID_ARG=""
 API_KEY_ARG=""
+KERNEL_ARG=""
 
 parse_args() {
     while [[ $# -gt 0 ]]; do
@@ -56,8 +57,10 @@ parse_args() {
                 NODE_ID_ARG="$2"; shift 2 ;;
             --api-key)
                 API_KEY_ARG="$2"; shift 2 ;;
+            --kernel)
+                KERNEL_ARG="$2"; shift 2 ;;
             -h|--help)
-                echo "用法: $0 [版本号] [--api-host URL] [--node-id ID] [--api-key KEY]"
+                echo "用法: $0 [版本号] [--api-host URL] [--node-id ID] [--api-key KEY] [--kernel xray|singbox]"
                 exit 0 ;;
             --*)
                 echo "未知参数: $1"; exit 1 ;;
@@ -70,6 +73,14 @@ parse_args() {
                 fi ;;
         esac
     done
+    # 内核类型：xray（默认，兼容旧版）/ singbox
+    if [[ -z "$KERNEL_ARG" ]]; then
+        KERNEL_ARG="xray"
+    fi
+    if [[ "$KERNEL_ARG" != "xray" && "$KERNEL_ARG" != "singbox" ]]; then
+        echo -e "${red}未知内核类型: ${KERNEL_ARG}（支持 xray / singbox）${plain}"
+        exit 1
+    fi
 }
 
 arch=$(uname -m)
@@ -319,7 +330,11 @@ install_v2node() {
             exit 1
         else
             echo -e "${green}检测到 ${RELEASE_REPO} 最新版本：${last_version}，开始安装...${plain}"
-            url="${RELEASE_BASE_URL}/${last_version}/v2node-linux-${arch}.zip"
+            if [[ "$KERNEL_ARG" == "singbox" ]]; then
+                url="${RELEASE_BASE_URL}/${last_version}/v2node-singbox-linux-${arch}.zip"
+            else
+                url="${RELEASE_BASE_URL}/${last_version}/v2node-linux-${arch}.zip"
+            fi
             download_with_progress "$url" /usr/local/v2node/v2node-linux.zip
             if [[ $? -ne 0 ]]; then
                 echo -e "${red}从 ${RELEASE_REPO} 下载 release 包失败，请检查 release 资产是否存在${plain}"
@@ -328,7 +343,11 @@ install_v2node() {
         fi
     else
         last_version=$version_param
-        url="${RELEASE_BASE_URL}/${last_version}/v2node-linux-${arch}.zip"
+        if [[ "$KERNEL_ARG" == "singbox" ]]; then
+            url="${RELEASE_BASE_URL}/${last_version}/v2node-singbox-linux-${arch}.zip"
+        else
+            url="${RELEASE_BASE_URL}/${last_version}/v2node-linux-${arch}.zip"
+        fi
         download_with_progress "$url" /usr/local/v2node/v2node-linux.zip
         if [[ $? -ne 0 ]]; then
             echo -e "${red}从 ${RELEASE_REPO} 下载 v2node $1 失败，请确认该 release 是否存在${plain}"
@@ -341,8 +360,20 @@ install_v2node() {
         rm v2node-linux.zip -f
         chmod +x v2node
         mkdir /etc/v2node/ -p
-        cp geoip.dat /etc/v2node/
-        cp geosite.dat /etc/v2node/
+        # geo 数据文件可选（singbox 包不携带）
+        [[ -f geoip.dat ]] && cp geoip.dat /etc/v2node/
+        [[ -f geosite.dat ]] && cp geosite.dat /etc/v2node/
+    fi
+    # singbox 内核包附带 sing-box 二进制，放到固定路径供 v2node 拉起
+    if [[ "$KERNEL_ARG" == "singbox" ]]; then
+        if [[ -f /usr/local/v2node/sing-box ]]; then
+            chmod +x /usr/local/v2node/sing-box
+        else
+            echo -e "${red}警告: 未在安装包中找到 sing-box 二进制${plain}"
+        fi
+        echo "singbox" > /etc/v2node/kernel
+    else
+        echo "xray" > /etc/v2node/kernel
     fi
     # 某些服务器对 systemd 目录设置了不可变属性，需要临时移除
     local systemd_immutable=false
@@ -362,6 +393,7 @@ description="v2node"
 command="/usr/local/v2node/v2node"
 command_args="server"
 command_user="root"
+export V2NODE_SINGBOX_BIN="/usr/local/v2node/sing-box"
 
 pidfile="/run/v2node.pid"
 command_background="yes"
@@ -390,6 +422,7 @@ LimitRSS=infinity
 LimitCORE=infinity
 LimitNOFILE=999999
 WorkingDirectory=/usr/local/v2node/
+Environment=V2NODE_SINGBOX_BIN=/usr/local/v2node/sing-box
 ExecStart=/usr/local/v2node/v2node server
 Restart=always
 RestartSec=10
