@@ -109,8 +109,11 @@ before_show_menu() {
     show_menu
 }
 
+# 防 raw CDN 缓存：带时间戳查询参数强制回源
+INSTALL_SH_URL="${RAW_BASE_URL}/install.sh?t=$(date +%s)"
+
 install() {
-    bash <(curl -Ls "${RAW_BASE_URL}/install.sh")
+    bash <(curl -Ls "${INSTALL_SH_URL}")
     if [[ $? == 0 ]]; then
         if [[ $# == 0 ]]; then
             start
@@ -131,7 +134,7 @@ update() {
     if [[ -f /etc/v2node/kernel ]]; then
         kernel_arg="--kernel $(cat /etc/v2node/kernel | tr -d '[:space:]')"
     fi
-    bash <(curl -Ls "${RAW_BASE_URL}/install.sh") $version $kernel_arg
+    bash <(curl -Ls "${INSTALL_SH_URL}") $version $kernel_arg
     if [[ $? == 0 ]]; then
         echo -e "${green}更新完成，已自动重启 v2node，请使用 v2node log 查看运行日志${plain}"
         exit
@@ -315,8 +318,9 @@ show_log() {
 }
 
 update_shell() {
-    if ! curl -fLsS -o /usr/bin/v2node "${RAW_BASE_URL}/script/v2node.sh"; then
-        if ! wget -qO /usr/bin/v2node --no-check-certificate "${RAW_BASE_URL}/script/v2node.sh"; then
+    local shell_url="${RAW_BASE_URL}/script/v2node.sh?t=$(date +%s)"
+    if ! curl -fLsS -o /usr/bin/v2node "${shell_url}"; then
+        if ! wget -qO /usr/bin/v2node --no-check-certificate "${shell_url}"; then
             echo ""
             echo -e "${red}下载脚本失败，请检查本机能否连接 Github${plain}"
             before_show_menu
