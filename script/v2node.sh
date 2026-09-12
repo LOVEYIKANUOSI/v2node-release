@@ -110,7 +110,7 @@ before_show_menu() {
 }
 
 install() {
-    bash <(curl -Ls "${RAW_BASE_URL}/script/install.sh")
+    bash <(curl -Ls "${RAW_BASE_URL}/install.sh")
     if [[ $? == 0 ]]; then
         if [[ $# == 0 ]]; then
             start
@@ -131,7 +131,7 @@ update() {
     if [[ -f /etc/v2node/kernel ]]; then
         kernel_arg="--kernel $(cat /etc/v2node/kernel | tr -d '[:space:]')"
     fi
-    bash <(curl -Ls "${RAW_BASE_URL}/script/install.sh") $version $kernel_arg
+    bash <(curl -Ls "${RAW_BASE_URL}/install.sh") $version $kernel_arg
     if [[ $? == 0 ]]; then
         echo -e "${green}更新完成，已自动重启 v2node，请使用 v2node log 查看运行日志${plain}"
         exit
