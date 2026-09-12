@@ -113,7 +113,12 @@ before_show_menu() {
 INSTALL_SH_URL="${RAW_BASE_URL}/install.sh?t=$(date +%s)"
 
 install() {
-    bash <(curl -Ls "${INSTALL_SH_URL}")
+    # 按本机内核标记选专用安装命令
+    local kernel="xray"
+    if [[ -f /etc/v2node/kernel ]]; then
+        kernel=$(cat /etc/v2node/kernel | tr -d '[:space:]')
+    fi
+    bash <(curl -Ls "${RAW_BASE_URL}/install-${kernel}.sh?t=$(date +%s)")
     if [[ $? == 0 ]]; then
         if [[ $# == 0 ]]; then
             start

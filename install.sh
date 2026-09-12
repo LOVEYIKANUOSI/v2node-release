@@ -61,6 +61,10 @@ parse_args() {
                 KERNEL_ARG="$2"; shift 2 ;;
             -h|--help)
                 echo "用法: $0 [版本号] [--api-host URL] [--node-id ID] [--api-key KEY] [--kernel xray|singbox]"
+                echo ""
+                echo "推荐使用两条专用安装命令（无需 --kernel）："
+                echo "  bash install-singbox.sh [参数...]   # sing-box 内核"
+                echo "  bash install-xray.sh [参数...]      # xray 内核"
                 exit 0 ;;
             --*)
                 echo "未知参数: $1"; exit 1 ;;
@@ -73,9 +77,9 @@ parse_args() {
                 fi ;;
         esac
     done
-    # 内核类型：xray（默认，兼容旧版）/ singbox
+    # 内核类型：--kernel 参数 > 环境变量 V2NODE_INSTALL_KERNEL（install-xray.sh / install-singbox.sh 注入）> 默认 xray
     if [[ -z "$KERNEL_ARG" ]]; then
-        KERNEL_ARG="xray"
+        KERNEL_ARG="${V2NODE_INSTALL_KERNEL:-xray}"
     fi
     if [[ "$KERNEL_ARG" != "xray" && "$KERNEL_ARG" != "singbox" ]]; then
         echo -e "${red}未知内核类型: ${KERNEL_ARG}（支持 xray / singbox）${plain}"
