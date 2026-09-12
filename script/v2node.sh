@@ -6,7 +6,7 @@ yellow='\033[0;33m'
 plain='\033[0m'
 
 cur_dir=$(pwd)
-GITHUB_REPO="${V2NODE_GITHUB_REPO:-LOVEYIKANUOSI/v2node}"
+GITHUB_REPO="${V2NODE_GITHUB_REPO:-LOVEYIKANUOSI/v2node-release}"
 GITHUB_BRANCH="${V2NODE_GITHUB_BRANCH:-main}"
 RAW_BASE_URL="https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}"
 
