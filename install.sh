@@ -311,15 +311,28 @@ install_v2node() {
     mkdir /usr/local/v2node/ -p
     cd /usr/local/v2node/
 
+    if [[ "$KERNEL_ARG" == "singbox" ]]; then
+        local asset="v2node-singbox-linux-${arch}.zip"
+    else
+        local asset="v2node-linux-${arch}.zip"
+    fi
+
     download_with_progress() {
         local url="$1"
         local output="$2"
         if command -v pv &>/dev/null; then
-            curl -sL "$url" | pv -s 30M -W -N "下载进度" > "$output"
+            # pipefail：curl 失败（如 404 资产缺失）时管道必须返回非零，否则会静默装出空壳
+            set -o pipefail
+            curl -fsSL "$url" | pv -s 30M -W -N "下载进度" > "$output"
+            local rc=$?
+            set +o pipefail
+            return $rc
         else
             echo -e "${yellow}pv 未安装，使用普通下载...${plain}"
-            curl -sL -o "$output" "$url" --progress-bar
+            curl -fSL -o "$output" "$url" --progress-bar
+            local rc=$?
             echo ""
+            return $rc
         fi
     }
 
@@ -330,27 +343,21 @@ install_v2node() {
             exit 1
         else
             echo -e "${green}检测到 ${RELEASE_REPO} 最新版本：${last_version}，开始安装...${plain}"
-            if [[ "$KERNEL_ARG" == "singbox" ]]; then
-                url="${RELEASE_BASE_URL}/${last_version}/v2node-singbox-linux-${arch}.zip"
-            else
-                url="${RELEASE_BASE_URL}/${last_version}/v2node-linux-${arch}.zip"
-            fi
+            url="${RELEASE_BASE_URL}/${last_version}/${asset}"
             download_with_progress "$url" /usr/local/v2node/v2node-linux.zip
             if [[ $? -ne 0 ]]; then
-                echo -e "${red}从 ${RELEASE_REPO} 下载 release 包失败，请检查 release 资产是否存在${plain}"
+                echo -e "${red}从 ${RELEASE_REPO} 下载 release 包失败（${last_version}/${asset}）${plain}"
+                echo -e "${red}常见原因：该 release 未发布所选内核（${KERNEL_ARG}）的资产；当前最新 release 仅发布 singbox 资产，请改用：${plain}"
+                echo -e "${yellow}  bash install.sh --api-host <panel> --node-id <id> --api-key <key> --kernel singbox${plain}"
                 exit 1
             fi
         fi
     else
         last_version=$version_param
-        if [[ "$KERNEL_ARG" == "singbox" ]]; then
-            url="${RELEASE_BASE_URL}/${last_version}/v2node-singbox-linux-${arch}.zip"
-        else
-            url="${RELEASE_BASE_URL}/${last_version}/v2node-linux-${arch}.zip"
-        fi
+        url="${RELEASE_BASE_URL}/${last_version}/${asset}"
         download_with_progress "$url" /usr/local/v2node/v2node-linux.zip
         if [[ $? -ne 0 ]]; then
-            echo -e "${red}从 ${RELEASE_REPO} 下载 v2node $1 失败，请确认该 release 是否存在${plain}"
+            echo -e "${red}从 ${RELEASE_REPO} 下载 v2node $1 失败（${asset}），请确认该 release 是否存在该资产；若只有 singbox 资产请加 --kernel singbox${plain}"
             exit 1
         fi
     fi
@@ -358,18 +365,23 @@ install_v2node() {
     if [[ -f /usr/local/v2node/v2node-linux.zip ]]; then
         unzip v2node-linux.zip
         rm v2node-linux.zip -f
-        chmod +x v2node
+        chmod +x v2node 2>/dev/null || true
         mkdir /etc/v2node/ -p
         # geo 数据文件可选（singbox 包不携带）
         [[ -f geoip.dat ]] && cp geoip.dat /etc/v2node/
         [[ -f geosite.dat ]] && cp geosite.dat /etc/v2node/
+    fi
+    if [[ ! -f /usr/local/v2node/v2node ]]; then
+        echo -e "${red}v2node 二进制未就位（下载/解压失败或包内容异常），安装中止。请检查 release 资产后用 --kernel singbox 重试${plain}"
+        exit 1
     fi
     # singbox 内核包附带 sing-box 二进制，放到固定路径供 v2node 拉起
     if [[ "$KERNEL_ARG" == "singbox" ]]; then
         if [[ -f /usr/local/v2node/sing-box ]]; then
             chmod +x /usr/local/v2node/sing-box
         else
-            echo -e "${red}警告: 未在安装包中找到 sing-box 二进制${plain}"
+            echo -e "${red}错误: singbox 安装包中缺少 sing-box 二进制，安装中止${plain}"
+            exit 1
         fi
         echo "singbox" > /etc/v2node/kernel
     else
